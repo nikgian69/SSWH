@@ -18,7 +18,7 @@ const router = Router();
 
 const createCommandSchema = z.object({
   type: z.enum(['REMOTE_BOOST_SET', 'SET_SCHEDULE', 'SET_CONFIG']),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
 });
 
 const ackCommandSchema = z.object({

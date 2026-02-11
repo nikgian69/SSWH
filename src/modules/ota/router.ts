@@ -67,7 +67,7 @@ router.get(
 const createOtaJobSchema = z.object({
   targetType: z.enum(['DEVICE', 'GROUP']),
   deviceId: z.string().uuid().optional(),
-  groupFilter: z.record(z.unknown()).optional(),
+  groupFilter: z.record(z.string(), z.unknown()).optional(),
   firmwarePackageId: z.string().uuid(),
   scheduledAt: z.string().datetime(),
 });

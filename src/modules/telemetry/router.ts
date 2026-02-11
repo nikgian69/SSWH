@@ -23,7 +23,7 @@ const METRIC_RANGES: Record<string, { min: number; max: number }> = {
 const telemetrySchema = z.object({
   deviceId: z.string().uuid(),
   ts: z.string().datetime(),
-  metrics: z.record(z.union([z.number(), z.boolean(), z.string()])),
+  metrics: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])),
   geo: z.object({
     lat: z.number().min(-90).max(90),
     lon: z.number().min(-180).max(180),

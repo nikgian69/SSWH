@@ -32,7 +32,7 @@ const registerDeviceSchema = z.object({
 const updateDeviceSchema = z.object({
   name: z.string().optional(),
   notes: z.string().optional(),
-  tags: z.record(z.unknown()).optional(),
+  tags: z.record(z.string(), z.unknown()).optional(),
   status: z.enum(['PROVISIONED', 'INSTALLED', 'ACTIVE', 'SUSPENDED', 'RETIRED']).optional(),
   siteId: z.string().uuid().nullable().optional(),
   ownerUserId: z.string().uuid().nullable().optional(),

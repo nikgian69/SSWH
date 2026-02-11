@@ -15,12 +15,12 @@ const router = Router();
 
 const createChannelSchema = z.object({
   type: z.enum(['EMAIL', 'SMS', 'WEBHOOK']),
-  config: z.record(z.unknown()),
+  config: z.record(z.string(), z.unknown()),
   enabled: z.boolean().optional(),
 });
 
 const updateChannelSchema = z.object({
-  config: z.record(z.unknown()).optional(),
+  config: z.record(z.string(), z.unknown()).optional(),
   enabled: z.boolean().optional(),
 }).partial();
 

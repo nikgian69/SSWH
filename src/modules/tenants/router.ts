@@ -16,7 +16,7 @@ const createTenantSchema = z.object({
 const updateTenantSchema = z.object({
   name: z.string().min(1).optional(),
   status: z.enum(['ACTIVE', 'SUSPENDED', 'ARCHIVED']).optional(),
-  settings: z.record(z.unknown()).optional(),
+  settings: z.record(z.string(), z.unknown()).optional(),
 });
 
 /**

@@ -20,7 +20,7 @@ const router = Router();
 const createAlertRuleSchema = z.object({
   name: z.string().min(1),
   type: z.enum(['NO_TELEMETRY', 'OVER_TEMP', 'POSSIBLE_LEAK', 'SENSOR_OUT_OF_RANGE']),
-  params: z.record(z.unknown()),
+  params: z.record(z.string(), z.unknown()),
   severity: z.enum(['INFO', 'WARNING', 'CRITICAL']).optional(),
   enabled: z.boolean().optional(),
 });
