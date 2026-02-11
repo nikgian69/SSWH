@@ -14,6 +14,9 @@ export interface AuthenticatedRequest extends Request {
     tenantId?: string;
     deviceId?: string;
     isDeviceAuth?: boolean;
+    params: Record<string, string>;
+    body: any;
+    query: Record<string, string | string[]>;
 }
 export declare function authenticateUser(req: AuthenticatedRequest, _res: Response, next: NextFunction): void;
 export declare function loadUserContext(req: AuthenticatedRequest, _res: Response, next: NextFunction): Promise<void>;
