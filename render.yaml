@@ -1,0 +1,26 @@
+databases:
+  - name: sswh-db
+    plan: free
+    databaseName: sswh_db
+    user: sswh
+
+services:
+  - type: web
+    name: sswh-backend
+    plan: free
+    runtime: node
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma db push --accept-data-loss && npm run db:seed:safe && npm start
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: sswh-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEVICE_HMAC_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000

@@ -1,0 +1,527 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ──────────────────────────────────────────────────────────────────
+
+enum TenantType {
+  MANUFACTURER
+  RETAILER
+  INSTALLER
+  PROPERTY_MANAGER
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum MembershipRole {
+  PLATFORM_ADMIN
+  TENANT_ADMIN
+  INSTALLER
+  SUPPORT_AGENT
+  END_USER
+}
+
+enum LocationSource {
+  MOBILE_GPS
+  EDGE_GNSS
+  EDGE_CELL
+  MANUAL
+}
+
+enum DeviceLocationSource {
+  EDGE_GNSS
+  EDGE_CELL
+}
+
+enum DeviceStatus {
+  PROVISIONED
+  INSTALLED
+  ACTIVE
+  SUSPENDED
+  RETIRED
+}
+
+enum CommandType {
+  REMOTE_BOOST_SET
+  SET_SCHEDULE
+  SET_CONFIG
+}
+
+enum CommandStatus {
+  QUEUED
+  DELIVERED
+  ACKED
+  FAILED
+  EXPIRED
+}
+
+enum OtaTargetType {
+  DEVICE
+  GROUP
+}
+
+enum OtaJobStatus {
+  SCHEDULED
+  IN_PROGRESS
+  SUCCESS
+  FAILED
+  CANCELED
+}
+
+enum SimStatus {
+  ACTIVE
+  SUSPENDED
+  INACTIVE
+  UNKNOWN
+}
+
+enum SimActionType {
+  ACTIVATE
+  DEACTIVATE
+  SUSPEND
+  RESUME
+}
+
+enum SimActionStatus {
+  REQUESTED
+  COMPLETED
+  FAILED
+}
+
+enum AlertRuleType {
+  NO_TELEMETRY
+  OVER_TEMP
+  POSSIBLE_LEAK
+  SENSOR_OUT_OF_RANGE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertEventStatus {
+  OPEN
+  ACKNOWLEDGED
+  CLOSED
+}
+
+enum NotificationChannelType {
+  EMAIL
+  SMS
+  WEBHOOK
+}
+
+enum NotificationEventStatus {
+  QUEUED
+  SENT
+  FAILED
+}
+
+enum EntitlementScope {
+  TENANT
+  DEVICE
+}
+
+enum EntitlementKey {
+  BASIC_REMOTE_BOOST
+  SMART_HOME_INTEGRATION
+}
+
+enum ActorType {
+  USER
+  DEVICE
+  SYSTEM
+}
+
+// ─── MODELS ─────────────────────────────────────────────────────────────────
+
+model Tenant {
+  id        String       @id @default(uuid())
+  name      String
+  type      TenantType
+  status    TenantStatus @default(ACTIVE)
+  settings  Json?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  memberships          Membership[]
+  sites                Site[]
+  devices              Device[]
+  alertRules           AlertRule[]
+  alertEvents          AlertEvent[]
+  notificationChannels NotificationChannel[]
+  notificationEvents   NotificationEvent[]
+  dailyRollups         DailyRollup[]
+  entitlements         Entitlement[]
+  auditLogs            AuditLog[]
+  otaJobs              OtaJob[]
+  weatherData          WeatherData[]
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  memberships     Membership[]
+  commands        Command[]       @relation("RequestedBy")
+  otaJobs         OtaJob[]        @relation("OtaCreatedBy")
+  simActions      SimAction[]
+  siteLocUpdates  Site[]          @relation("LocationUpdatedBy")
+}
+
+model Membership {
+  id        String         @id @default(uuid())
+  userId    String
+  tenantId  String
+  role      MembershipRole
+  createdAt DateTime       @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+model Site {
+  id                      String          @id @default(uuid())
+  tenantId                String
+  name                    String
+  addressLine1            String?
+  addressLine2            String?
+  city                    String?
+  region                  String?
+  postalCode              String?
+  country                 String?
+  lat                     Float?
+  lon                     Float?
+  locationSource          LocationSource?
+  locationAccuracyM       Float?
+  locationConfidence      Float?
+  locationUpdatedAt       DateTime?
+  locationUpdatedByUserId String?
+  locationLock            Boolean         @default(false)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  tenant              Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  locationUpdatedBy   User?   @relation("LocationUpdatedBy", fields: [locationUpdatedByUserId], references: [id])
+  devices             Device[]
+  weatherData         WeatherData[]
+
+  @@index([tenantId])
+  @@index([lat, lon])
+  @@index([tenantId, lat, lon])
+}
+
+model Device {
+  id                      String               @id @default(uuid())
+  tenantId                String
+  siteId                  String?
+  ownerUserId             String?
+  model                   String
+  serialNumber            String
+  name                    String?
+  notes                   String?
+  tags                    Json?
+  status                  DeviceStatus         @default(PROVISIONED)
+  lastSeenAt              DateTime?
+  firmwareVersion         String?
+  simIccid                String?
+  deviceLat               Float?
+  deviceLon               Float?
+  deviceLocationTs        DateTime?
+  deviceLocationSource    DeviceLocationSource?
+  deviceLocationAccuracyM Float?
+  createdAt               DateTime             @default(now())
+  updatedAt               DateTime             @updatedAt
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site         Site?         @relation(fields: [siteId], references: [id])
+  sim          SimInfo?      @relation(fields: [simIccid], references: [iccid])
+  secret       DeviceSecret?
+  twin         DeviceTwin?
+  telemetry    Telemetry[]
+  commands     Command[]
+  alertEvents  AlertEvent[]
+  dailyRollups DailyRollup[]
+  entitlements Entitlement[]
+
+  @@unique([tenantId, serialNumber])
+  @@index([tenantId])
+  @@index([siteId])
+}
+
+model DeviceSecret {
+  id         String   @id @default(uuid())
+  deviceId   String   @unique
+  secretHash String
+  publicKey  String?
+  rotatedAt  DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+
+model Telemetry {
+  id        String   @id @default(uuid())
+  deviceId  String
+  ts        DateTime
+  metrics   Json
+  geo       Json?
+  createdAt DateTime @default(now())
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, ts(sort: Desc)])
+}
+
+model DeviceTwin {
+  id           String   @id @default(uuid())
+  deviceId     String   @unique
+  lastTs       DateTime?
+  derivedState Json     @default("{}")
+  updatedAt    DateTime @updatedAt
+
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+}
+
+model Command {
+  id                String        @id @default(uuid())
+  deviceId          String
+  type              CommandType
+  payload           Json
+  status            CommandStatus @default(QUEUED)
+  requestedByUserId String?
+  requestedAt       DateTime      @default(now())
+  deliveredAt       DateTime?
+  ackAt             DateTime?
+  errorMsg          String?
+
+  device      Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  requestedBy User?  @relation("RequestedBy", fields: [requestedByUserId], references: [id])
+}
+
+model FirmwarePackage {
+  id           String   @id @default(uuid())
+  version      String   @unique
+  fileUrl      String
+  checksum     String
+  releaseNotes String?
+  createdAt    DateTime @default(now())
+
+  otaJobs OtaJob[]
+}
+
+model OtaJob {
+  id                String       @id @default(uuid())
+  tenantId          String
+  targetType        OtaTargetType
+  deviceId          String?
+  groupFilter       Json?
+  firmwarePackageId String
+  status            OtaJobStatus @default(SCHEDULED)
+  scheduledAt       DateTime
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdByUserId   String?
+  progress          Json?
+  createdAt         DateTime     @default(now())
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  firmwarePackage FirmwarePackage @relation(fields: [firmwarePackageId], references: [id])
+  createdBy       User?           @relation("OtaCreatedBy", fields: [createdByUserId], references: [id])
+}
+
+model SimInfo {
+  iccid       String    @id
+  carrier     String?
+  planName    String?
+  status      SimStatus @default(UNKNOWN)
+  lastSyncAt  DateTime?
+  dataUsageMb Float?
+  msisdn      String?
+  imsi        String?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  devices    Device[]
+  simActions SimAction[]
+}
+
+model SimAction {
+  id                String          @id @default(uuid())
+  iccid             String
+  action            SimActionType
+  requestedByUserId String?
+  requestedAt       DateTime        @default(now())
+  status            SimActionStatus @default(REQUESTED)
+  providerRef       String?
+  errorMsg          String?
+
+  sim         SimInfo @relation(fields: [iccid], references: [iccid])
+  requestedBy User?   @relation(fields: [requestedByUserId], references: [id])
+}
+
+model AlertRule {
+  id        String        @id @default(uuid())
+  tenantId  String
+  name      String
+  enabled   Boolean       @default(true)
+  type      AlertRuleType
+  params    Json
+  severity  AlertSeverity @default(WARNING)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  alertEvents AlertEvent[]
+
+  @@index([tenantId])
+}
+
+model AlertEvent {
+  id               String           @id @default(uuid())
+  tenantId         String
+  deviceId         String
+  ruleId           String
+  severity         AlertSeverity
+  status           AlertEventStatus @default(OPEN)
+  openedAt         DateTime         @default(now())
+  acknowledgedAt   DateTime?
+  closedAt         DateTime?
+  details          Json?
+  dedupeKey        String?
+
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device              Device              @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  rule                AlertRule           @relation(fields: [ruleId], references: [id])
+  notificationEvents  NotificationEvent[]
+
+  @@unique([dedupeKey])
+  @@index([tenantId, status])
+  @@index([deviceId, status])
+}
+
+model NotificationChannel {
+  id        String                  @id @default(uuid())
+  tenantId  String
+  type      NotificationChannelType
+  config    Json
+  enabled   Boolean                 @default(true)
+  createdAt DateTime                @default(now())
+  updatedAt DateTime                @updatedAt
+
+  tenant              Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  notificationEvents  NotificationEvent[]
+
+  @@index([tenantId])
+}
+
+model NotificationEvent {
+  id           String                  @id @default(uuid())
+  tenantId     String
+  channelId    String
+  alertEventId String?
+  status       NotificationEventStatus @default(QUEUED)
+  payload      Json
+  sentAt       DateTime?
+  errorMsg     String?
+  createdAt    DateTime                @default(now())
+
+  tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel      NotificationChannel @relation(fields: [channelId], references: [id])
+  alertEvent   AlertEvent?         @relation(fields: [alertEventId], references: [id])
+
+  @@index([tenantId])
+}
+
+model DailyRollup {
+  id                     String   @id @default(uuid())
+  tenantId               String
+  deviceId               String
+  dayDate                DateTime @db.Date
+  energyKwhDay           Float?
+  hotWaterUsageLitersDay Float?
+  heaterOnMinutesDay     Float?
+  tankTempMinC           Float?
+  tankTempMaxC           Float?
+  ambientTempAvgC        Float?
+  createdAt              DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, dayDate])
+  @@index([deviceId, dayDate])
+}
+
+model Entitlement {
+  id        String           @id @default(uuid())
+  tenantId  String
+  scope     EntitlementScope
+  deviceId  String?
+  key       EntitlementKey
+  enabled   Boolean          @default(true)
+  updatedAt DateTime         @updatedAt
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  device Device? @relation(fields: [deviceId], references: [id])
+
+  @@unique([tenantId, key, deviceId])
+  @@index([tenantId])
+}
+
+model AuditLog {
+  id          String    @id @default(uuid())
+  tenantId    String?
+  actorUserId String?
+  actorType   ActorType @default(USER)
+  action      String
+  entityType  String
+  entityId    String
+  metadata    Json?
+  createdAt   DateTime  @default(now())
+
+  tenant Tenant? @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@index([entityType, entityId])
+}
+
+model WeatherData {
+  id          String   @id @default(uuid())
+  tenantId    String
+  siteId      String
+  date        DateTime @db.Date
+  summary     Json
+  createdAt   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date])
+  @@index([tenantId])
+}
